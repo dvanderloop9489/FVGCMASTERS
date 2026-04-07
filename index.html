@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026 Masters Pool Tracker • Live</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+        :root { --masters-green: #00693e; }
+        body { font-family: 'Roboto', sans-serif; background: #f4f4f4; color: #222; margin:0; padding:20px; }
+        header { background: var(--masters-green); color: white; padding: 20px; text-align:center; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        h1 { margin:0; font-size: 2.2em; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .section { background: white; border-radius: 12px; padding: 20px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        table { width:100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: var(--masters-green); color: white; }
+        tr:hover { background: #f0f8f0; }
+        input, select, button { padding: 10px; margin: 5px; border-radius: 6px; border: 1px solid #ccc; font-size: 1em; }
+        button { background: var(--masters-green); color: white; cursor: pointer; font-weight: 500; }
+        button:hover { background: #004d2c; }
+        .live-btn { background: #e31b23; animation: pulse 2s infinite; }
+        .totals { font-size: 1.4em; font-weight: bold; color: var(--masters-green); }
+        .link-btn { background: #00693e; color: white; text-decoration: none; padding: 12px 20px; border-radius: 8px; display: inline-block; margin: 8px 4px; }
+        .data-area { background: #f9f9f9; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+        #live-status { font-size: 0.95em; color: #00693e; font-weight: 500; margin-top: 8px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>🏌️‍♂️ 2026 Masters Pool Tracker • LIVE</h1>
+        <p>Dan • Ryan • Jake • Connor • Alex • Nick • GitHub Pages + Auto PGA/ESPN feed</p>
+        <p style="font-size:0.9em; margin-top:8px;">April 9–12 • Purse proxy: $21M (2025 structure) • Hosted free on GitHub</p>
+    </header>
+
+    <!-- Team Setup -->
+    <div class="section">
+        <h2>1. Set Your Teams (6 golfers each)</h2>
+        <div id="teams-container"></div>
+        <button onclick="saveTeams()">💾 Save All Teams</button>
+        <button onclick="resetTeams()" style="background:#d32f2f;margin-left:10px;">Reset Teams</button>
+    </div>
+
+    <!-- Projections -->
+    <div class="section">
+        <h2>2. Live Projections (update from official feed)</h2>
+        <p><strong>Live Leaderboards:</strong> 
+            <a href="https://www.masters.com/en_US/scores/index.html" target="_blank" class="link-btn">Masters.com</a>
+            <a href="https://www.espn.com/golf/leaderboard/_/tournamentId/401811941" target="_blank" class="link-btn">ESPN 2026 Masters</a>
+            <a href="https://www.pgatour.com/leaderboard" target="_blank" class="link-btn">PGA Tour</a>
+        </p>
+        
+        <button onclick="fetchLivePositions()" class="live-btn" style="padding:14px 24px;font-size:1.1em;margin-bottom:15px;">
+            🔄 Fetch Live Positions from PGA Tour Feed (ESPN source)
+        </button>
+        <span id="live-status"></span>
+        
+        <p>Or enter position manually (e.g. 4 or MC). Auto-fetch updates matching golfers instantly.</p>
+        
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:15px;">
+            <input id="new-golfer" placeholder="Golfer name (e.g. Scottie Scheffler)" style="flex:1; min-width:250px;">
+            <input id="new-pos" placeholder="Position (number or MC)" style="width:150px;">
+            <button onclick="addOrUpdateProjection()">➕ Add/Update</button>
+        </div>
+        
+        <table id="projections-table">
+            <thead><tr><th>Golfer</th><th>Current Position</th><th>Projected Winnings</th><th>Action</th></tr></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <!-- Standings -->
+    <div class="section">
+        <h2>3. Current Standings (Total Projected $)</h2>
+        <table id="standings-table">
+            <thead><tr><th>Rank</th><th>Friend</th><th>Total Projected Winnings</th></tr></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <!-- Export / Import -->
+    <div class="section">
+        <h2>Share Data with Friends</h2>
+        <button onclick="exportData()">📤 Export JSON</button>
+        <button onclick="document.getElementById('import-input').click()" style="margin-left:10px;">📥 Import JSON</button>
+        <input id="import-input" type="file" accept=".json" style="display:none;" onchange="importData(event)">
+        <div id="json-display" class="data-area" style="margin-top:15px; display:none;"></div>
+    </div>
+
+    <footer style="text-align:center; font-size:0.85em; color:#666; margin-top:30px;">
+        GitHub Pages hosted • Auto data from PGA Tour official feed (same as ESPN) • Data saved in browser • Refresh during tournament for live updates<br>
+        Purse based on 2025 ($21M). Official 2026 payouts drop mid-week — edit payouts object in code if needed.
+    </footer>
+</div>
+
+<script>
+// ====================== DATA ======================
+const friends = ["Dan", "Ryan", "Jake", "Connor", "Alex", "Nick"];
+let teams = {};
+let projections = {};     // { "Scottie Scheffler": {pos: "3", winnings: 1428000}, ... }
+let lastTournamentName = "";
+
+// ====================== PAYOUTS ======================
+function getPayout(position) {
+    if (position === "MC" || position === "mc" || position === "CUT" || position === 0) return 25000;
+    if (typeof position !== "number" && isNaN(parseInt(position))) return 0;
+    const posNum = parseInt(position);
+    const basePayouts = {1:4200000,2:2268000,3:1428000,4:1008000,5:840000,6:756000,7:703500,8:651000,9:609000,10:567000,11:525000,12:483000,13:462000,14:336000,15:336000,16:294000,17:294000,18:252000,19:252000,20:231000,21:210000,22:210000,23:210000,24:189000,25:189000,26:168000,27:161700,28:155400,29:149100,30:142800,31:136500,32:130200,33:123900};
+    if (basePayouts[posNum]) return basePayouts[posNum];
+    return Math.max(40000, 123900 - Math.floor((posNum - 33) * 3200));
+}
+
+// ====================== LOAD / SAVE ======================
+function loadData() {
+    const savedTeams = localStorage.getItem("mastersTeams2026");
+    const savedProjections = localStorage.getItem("mastersProjections2026");
+    if (savedTeams) teams = JSON.parse(savedTeams);
+    if (savedProjections) projections = JSON.parse(savedProjections);
+    friends.forEach(f => { if (!teams[f]) teams[f] = Array(6).fill(""); });
+}
+
+function saveData() {
+    localStorage.setItem("mastersTeams2026", JSON.stringify(teams));
+    localStorage.setItem("mastersProjections2026", JSON.stringify(projections));
+}
+
+// ====================== TEAM UI ======================
+function renderTeams() {
+    const container = document.getElementById("teams-container");
+    container.innerHTML = "";
+    friends.forEach(friend => {
+        const div = document.createElement("div");
+        div.style = "margin-bottom:20px; border:1px solid #eee; padding:15px; border-radius:8px;";
+        div.innerHTML = `
+            <h3 style="margin:0 0 10px 0;">${friend}'s 6 Golfers</h3>
+            <div style="display:grid; grid-template-columns:repeat(6,1fr); gap:8px;">
+                ${teams[friend].map((golfer, i) => `
+                    <input type="text" value="${golfer}" placeholder="Golfer ${i+1}" 
+                           oninput="teams['${friend}'][${i}] = this.value.trim();">
+                `).join("")}
+            </div>
+        `;
+        container.appendChild(div);
+    });
+}
+
+function saveTeams() {
+    saveData();
+    renderProjectionsTable();
+    renderStandings();
+    alert("✅ Teams saved!");
+}
+
+// ====================== PROJECTIONS TABLE ======================
+function renderProjectionsTable() {
+    const tbody = document.querySelector("#projections-table tbody");
+    tbody.innerHTML = "";
+    Object.keys(projections).sort().forEach(golfer => {
+        const p = projections[golfer];
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>${golfer}</td>
+            <td><input type="text" value="${p.pos}" style="width:80px;" onchange="updateProjection('${golfer}', this.value)"></td>
+            <td>$${p.winnings.toLocaleString()}</td>
+            <td><button onclick="deleteProjection('${golfer}')" style="background:#d32f2f;padding:5px 10px;font-size:0.9em;">🗑</button></td>
+        `;
+        tbody.appendChild(row);
+    });
+    if (Object.keys(projections).length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:#888;">No projections yet</td></tr>`;
+    }
+}
+
+function addOrUpdateProjection() {
+    const name = document.getElementById("new-golfer").value.trim();
+    let posStr = document.getElementById("new-pos").value.trim();
+    if (!name) return alert("Enter golfer name");
+    let pos = posStr.toUpperCase() === "MC" ? "MC" : parseInt(posStr);
+    if (isNaN(pos) && pos !== "MC") return alert("Position must be number or MC");
+    projections[name] = {pos: pos, winnings: getPayout(pos)};
+    document.getElementById("new-golfer").value = "";
+    document.getElementById("new-pos").value = "";
+    saveData();
+    renderProjectionsTable();
+    renderStandings();
+}
+
+function updateProjection(golfer, newPosStr) {
+    let pos = newPosStr.toUpperCase() === "MC" ? "MC" : parseInt(newPosStr);
+    if (isNaN(pos) && pos !== "MC") return;
+    projections[golfer] = {pos: pos, winnings: getPayout(pos)};
+    saveData();
+    renderProjectionsTable();
+    renderStandings();
+}
+
+function deleteProjection(golfer) {
+    if (confirm(`Remove ${golfer}?`)) {
+        delete projections[golfer];
+        saveData();
+        renderProjectionsTable();
+        renderStandings();
+    }
+}
+
+// ====================== AUTO LIVE FETCH (PGA Tour feed) ======================
+async function fetchLivePositions() {
+    const statusEl = document.getElementById("live-status");
+    statusEl.textContent = "⏳ Fetching live data...";
+    try {
+        const proxy = "https://corsproxy.io/?";
+        // Get current tournament
+        const msgRes = await fetch(proxy + encodeURIComponent("https://statdata.pgatour.com/r/current/message.json"));
+        if (!msgRes.ok) throw new Error("No active tournament");
+        const msg = await msgRes.json();
+        const tid = msg.tid || msg.currentTid;
+        const tourneyName = msg.tn || msg.tournamentName || "Unknown";
+        lastTournamentName = tourneyName;
+
+        if (!tid || !tourneyName.toLowerCase().includes("masters")) {
+            statusEl.innerHTML = `⚠️ Current event: <strong>${tourneyName}</strong> — Masters starts April 9`;
+            return alert("Masters not yet active. Check back Thursday!");
+        }
+
+        // Get leaderboard
+        const lbRes = await fetch(proxy + encodeURIComponent(`https://statdata.pgatour.com/r/${tid}/leaderboard-v2mini.json`));
+        if (!lbRes.ok) throw new Error();
+        const lb = await lbRes.json();
+
+        // Flexible player array extraction
+        const players = lb.players || (lb.leaderboard && lb.leaderboard.players) || [];
+        let updated = 0;
+
+        players.forEach(p => {
+            const rawName = (p.name || p.playerName || `${p.firstName||""} ${p.lastName||""}`).trim();
+            let posStr = (p.pos || p.position || p.currentPosition || "").toString().trim();
+            if (["MC","CUT","WD","M/C"].includes(posStr.toUpperCase()) || p.status === "missed-cut") posStr = "MC";
+
+            // Fuzzy match against all projections (or teams)
+            Object.keys(projections).forEach(golferKey => {
+                const gLower = golferKey.toLowerCase();
+                const nLower = rawName.toLowerCase();
+                const gParts = gLower.split(" ");
+                if ((nLower.includes(gParts[0]) && nLower.includes(gParts[gParts.length-1])) || gLower.includes(nLower.split(",")[0])) {
+                    projections[golferKey] = {pos: posStr, winnings: getPayout(posStr)};
+                    updated++;
+                }
+            });
+        });
+
+        saveData();
+        renderProjectionsTable();
+        renderStandings();
+        statusEl.innerHTML = `✅ LIVE • ${tourneyName} • ${updated} golfers updated • ${new Date().toLocaleTimeString()}`;
+    } catch (e) {
+        console.error(e);
+        statusEl.textContent = "❌ Fetch failed — enter manually or retry (tournament must be live)";
+        alert("Live fetch unavailable right now (pre-tournament or temporary network). Use the ESPN/Masters links above and enter positions manually.");
+    }
+}
+
+// ====================== STANDINGS ======================
+function calculatePlayerTotal(player) {
+    let total = 0;
+    (teams[player] || []).forEach(g => {
+        if (projections[g]) total += projections[g].winnings || 0;
+    });
+    return total;
+}
+
+function renderStandings() {
+    const tbody = document.querySelector("#standings-table tbody");
+    tbody.innerHTML = "";
+    const standings = friends.map(f => ({
+        name: f,
+        total: calculatePlayerTotal(f)
+    })).sort((a,b) => b.total - a.total);
+    standings.forEach((s, i) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td><strong>#${i+1}</strong></td>
+            <td>${s.name}</td>
+            <td class="totals">$${s.total.toLocaleString()}</td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// ====================== EXPORT / IMPORT ======================
+function exportData() {
+    const data = { teams, projections, timestamp: new Date().toISOString(), tournament: lastTournamentName };
+    const jsonStr = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonStr], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "masters-pool-2026-backup.json"; a.click();
+    URL.revokeObjectURL(url);
+    const display = document.getElementById("json-display");
+    display.style.display = "block";
+    display.textContent = jsonStr;
+}
+
+function importData(e) {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+        try {
+            const imported = JSON.parse(ev.target.result);
+            if (imported.teams) teams = imported.teams;
+            if (imported.projections) projections = imported.projections;
+            saveData();
+            renderTeams();
+            renderProjectionsTable();
+            renderStandings();
+            alert("✅ Imported!");
+        } catch(err) { alert("Invalid file"); }
+    };
+    reader.readAsText(file);
+}
+
+function resetTeams() {
+    if (confirm("Reset all teams?")) {
+        teams = {}; friends.forEach(f => teams[f] = Array(6).fill(""));
+        saveData(); renderTeams();
+    }
+}
+
+// ====================== INIT ======================
+function init() {
+    loadData();
+    renderTeams();
+    renderProjectionsTable();
+    renderStandings();
+    // Auto-refresh standings every 30s
+    setInterval(renderStandings, 30000);
+    console.log("%c✅ 2026 Masters Pool ready for GitHub Pages + live PGA feed", "color:#00693e;font-weight:bold");
+}
+
+window.onload = init;
+</script>
+</body>
+</html>
