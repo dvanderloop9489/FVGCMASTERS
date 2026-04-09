@@ -12,6 +12,7 @@
         h1 { margin:0; font-size: 2.2em; }
         .container { max-width: 1200px; margin: 0 auto; }
         .section { background: white; border-radius: 12px; padding: 20px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .banner { background: #fff3cd; color: #856404; padding: 12px; border-radius: 8px; text-align: center; font-weight: 500; margin-bottom: 15px; }
         .tab-bar { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
         .tab { padding: 12px 20px; background: #ddd; border-radius: 8px; cursor: pointer; font-weight: 500; }
         .tab.active { background: var(--masters-green); color: white; }
@@ -24,24 +25,25 @@
         button:hover { background: #004d2c; }
         .live-btn { background: #e31b23; animation: pulse 2s infinite; }
         .totals { font-size: 1.3em; font-weight: bold; color: var(--masters-green); }
-        .player-row { font-size: 0.95em; }
         .link-btn { background: #00693e; color: white; text-decoration: none; padding: 10px 16px; border-radius: 6px; display: inline-block; margin: 5px; }
-        #live-status { font-weight: 500; color: #00693e; }
-        .team-grid { display: none; }
-        .team-grid.show { display: block; }
+        #live-status { font-weight: 500; }
     </style>
 </head>
 <body>
 <div class="container">
     <header>
         <h1>🏌️‍♂️ 2026 Masters Pool Tracker</h1>
-        <p>Dan • Ryan • Jake • Connor • Alex • Nick • April 9–12</p>
+        <p>Dan • Ryan • Jake • Connor • Alex • Nick • Round 1 • April 9, 2026</p>
     </header>
 
-    <!-- Top Standings with Score to Par -->
+    <div id="pre-round-banner" class="banner">
+        ⏳ Round 1 is underway — early groups teeing off. Live scores are populating gradually. Click "Fetch" often!
+    </div>
+
+    <!-- Top Standings -->
     <div class="section">
-        <h2>📊 Current Standings (with Score to Par & Projected $)</h2>
-        <p><strong>Live Leaderboards:</strong> 
+        <h2>📊 Live Standings (Score to Par + Projected $)</h2>
+        <p><strong>Official Live Leaderboards:</strong> 
             <a href="https://www.masters.com/en_US/scores/index.html" target="_blank" class="link-btn">Masters.com</a>
             <a href="https://www.espn.com/golf/leaderboard/_/tournamentId/401811941" target="_blank" class="link-btn">ESPN</a>
             <a href="https://www.pgatour.com/leaderboard" target="_blank" class="link-btn">PGA Tour</a>
@@ -49,24 +51,23 @@
         <button onclick="fetchLivePositions()" class="live-btn" style="padding:14px 24px;font-size:1.1em;">🔄 Fetch Live Positions & Scores</button>
         <span id="live-status" style="margin-left:15px;"></span>
         <table id="standings-table">
-            <thead><tr><th>Rank</th><th>Friend</th><th>Team Score to Par</th><th>Projected Winnings</th></tr></thead>
+            <thead><tr><th>Rank</th><th>Friend</th><th>Team Details (Player: To Par / $)</th><th>Total Projected</th></tr></thead>
             <tbody></tbody>
         </table>
     </div>
 
     <!-- Tabs -->
     <div class="tab-bar">
-        <div class="tab active" onclick="switchTab(0)">Standings</div>
-        <div class="tab" onclick="switchTab(1)">Projections</div>
-        <div class="tab" onclick="switchTab(2)">Manage Teams</div>
+        <div class="tab" onclick="switchTab(0)">Projections</div>
+        <div class="tab active" onclick="switchTab(1)">Manage Teams</div>
     </div>
 
     <!-- Projections Tab -->
-    <div class="section tab-content" id="tab-1" style="display:none;">
+    <div class="section tab-content" id="tab-0">
         <h2>Projected Winnings Table</h2>
         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:15px;">
             <input id="new-golfer" placeholder="Golfer name" style="flex:1; min-width:250px;">
-            <input id="new-pos" placeholder="Pos (e.g. 4 or MC)" style="width:160px;">
+            <input id="new-pos" placeholder="Pos or MC" style="width:160px;">
             <button onclick="addOrUpdateProjection()">➕ Add/Update</button>
         </div>
         <table id="projections-table">
@@ -76,7 +77,7 @@
     </div>
 
     <!-- Manage Teams Tab -->
-    <div class="section tab-content" id="tab-2" style="display:none;">
+    <div class="section tab-content" id="tab-1" style="display:none;">
         <h2>Manage Teams</h2>
         <button onclick="resetToDefaultTeams()" style="background:#00693e;margin-bottom:15px;">🔄 Reset to Original Teams</button>
         <div id="teams-container"></div>
@@ -84,19 +85,19 @@
     </div>
 
     <div class="section">
-        <h2>Share Data</h2>
+        <h2>Share / Backup</h2>
         <button onclick="exportData()">📤 Export JSON</button>
         <button onclick="document.getElementById('import-input').click()" style="margin-left:10px;">📥 Import JSON</button>
         <input id="import-input" type="file" accept=".json" style="display:none;" onchange="importData(event)">
     </div>
 
     <footer style="text-align:center; font-size:0.85em; color:#666; margin-top:30px;">
-        GitHub Pages • Live PGA Tour feed (same as ESPN) • Purse ~$21M (winner $4.2M) • Data saved in browser
+        GitHub Pages • Powered by PGA Tour official feed • Data updates as scores post during Round 1
     </footer>
 </div>
 
 <script>
-// Default teams
+// Default teams (all your golfers)
 const defaultTeams = {
     "Dan": ["Ludvig Aberg", "Justin Rose", "Min Woo Lee", "Si Woo Kim", "Shane Lowry", "Jake Knapp"],
     "Jake": ["Scottie Scheffler", "Hideki Matsuyama", "Jordan Spieth", "Sepp Straka", "Tyrell Hatton", "Harris English"],
@@ -108,10 +109,10 @@ const defaultTeams = {
 
 const friends = ["Dan", "Ryan", "Jake", "Connor", "Alex", "Nick"];
 let teams = JSON.parse(JSON.stringify(defaultTeams));
-let projections = {}; // golfer -> {pos, winnings, toPar}
+let projections = {};
 
 function getPayout(pos) {
-    if (!pos || pos.toString().toUpperCase() === "MC") return 25000;
+    if (!pos || String(pos).toUpperCase() === "MC") return 25000;
     const n = parseInt(pos);
     if (isNaN(n)) return 0;
     const payouts = {1:4200000,2:2268000,3:1428000,4:1008000,5:840000,6:756000,7:703500,8:651000,9:609000,10:567000};
@@ -125,166 +126,134 @@ function renderTeams() {
         const div = document.createElement("div");
         div.style = "margin-bottom:20px;border:1px solid #eee;padding:15px;border-radius:8px;";
         div.innerHTML = `<h3>${f}'s Team</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;">` +
-            teams[f].map((g,i) => `<input type="text" value="${g}" oninput="teams['${f}'][${i}]=this.value.trim();">`).join('') +
-            `</div>`;
+            teams[f].map((g,i) => `<input type="text" value="${g}" oninput="teams['${f}'][${i}]=this.value.trim();">`).join('') + `</div>`;
         container.appendChild(div);
     });
 }
 
-function saveTeams() {
-    localStorage.setItem("mastersTeams2026", JSON.stringify(teams));
-    renderAll();
-    alert("✅ Teams saved!");
-}
-
+function saveTeams() { localStorage.setItem("mastersTeams2026", JSON.stringify(teams)); renderAll(); alert("✅ Saved!"); }
 function resetToDefaultTeams() {
-    if (confirm("Reset all teams to the original lineup?")) {
+    if (confirm("Reset to original teams?")) {
         teams = JSON.parse(JSON.stringify(defaultTeams));
         localStorage.setItem("mastersTeams2026", JSON.stringify(teams));
-        renderTeams();
-        renderAll();
-        alert("✅ Teams reset to default!");
+        renderTeams(); renderAll(); alert("✅ Reset complete!");
     }
 }
 
-// Render full standings with per-player to par + $
 function renderStandings() {
     const tbody = document.querySelector("#standings-table tbody");
     tbody.innerHTML = "";
     const standings = friends.map(f => {
         let total = 0;
-        let teamToPar = "";
-        const playerDetails = (teams[f] || []).map(g => {
-            const p = projections[g] || {pos: "-", winnings: 0, toPar: "-"};
+        const details = (teams[f] || []).map(g => {
+            const p = projections[g] || {toPar: "-", winnings: 0};
             total += p.winnings || 0;
-            return `${g}: ${p.toPar} ($${ (p.winnings||0).toLocaleString() })`;
+            return `${g}: ${p.toPar} ($${(p.winnings||0).toLocaleString()})`;
         }).join(" | ");
-        return {name: f, total, details: playerDetails};
+        return {name: f, total, details};
     }).sort((a,b) => b.total - a.total);
 
-    standings.forEach((s, i) => {
+    standings.forEach((s,i) => {
         const row = document.createElement("tr");
-        row.innerHTML = `
-            <td><strong>#${i+1}</strong></td>
-            <td>${s.name}</td>
-            <td style="font-size:0.95em;">${s.details}</td>
-            <td class="totals">$${s.total.toLocaleString()}</td>
-        `;
+        row.innerHTML = `<td><strong>#${i+1}</strong></td><td>${s.name}</td><td style="font-size:0.95em;">${s.details}</td><td class="totals">$${s.total.toLocaleString()}</td>`;
         tbody.appendChild(row);
     });
 }
 
 function renderProjectionsTable() {
     const tbody = document.querySelector("#projections-table tbody");
-    tbody.innerHTML = "";
+    tbody.innerHTML = Object.keys(projections).length ? "" : `<tr><td colspan="4" style="text-align:center;color:#888;">Live fetch will populate as scores post</td></tr>`;
     Object.keys(projections).sort().forEach(g => {
         const p = projections[g];
         const row = document.createElement("tr");
-        row.innerHTML = `
-            <td>${g}</td>
-            <td><input type="text" value="${p.pos}" style="width:80px;" onchange="updateProjection('${g}', this.value)"></td>
-            <td>$${p.winnings.toLocaleString()}</td>
-            <td><button onclick="deleteProjection('${g}')" style="background:#d32f2f;padding:5px 10px;">🗑</button></td>
-        `;
+        row.innerHTML = `<td>${g}</td><td><input type="text" value="${p.pos}" style="width:80px;" onchange="updateProjection('${g}',this.value)"></td><td>$${p.winnings.toLocaleString()}</td><td><button onclick="deleteProjection('${g}')" style="background:#d32f2f;padding:5px 10px;">🗑</button></td>`;
         tbody.appendChild(row);
     });
-    if (Object.keys(projections).length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:#888;">No projections yet — use live fetch or manual entry</td></tr>`;
-    }
 }
+
+function renderAll() { renderStandings(); renderProjectionsTable(); renderTeams(); }
 
 function addOrUpdateProjection() {
     const name = document.getElementById("new-golfer").value.trim();
     let posStr = document.getElementById("new-pos").value.trim();
     if (!name) return alert("Enter golfer name");
-    let pos = posStr.toUpperCase() === "MC" ? "MC" : parseInt(posStr);
-    if (isNaN(pos) && pos !== "MC") return alert("Position must be number or MC");
-    projections[name] = {pos: pos, winnings: getPayout(pos), toPar: pos === "MC" ? "MC" : "-" };
-    document.getElementById("new-golfer").value = "";
-    document.getElementById("new-pos").value = "";
+    const pos = posStr.toUpperCase() === "MC" ? "MC" : parseInt(posStr);
+    if (isNaN(pos) && pos !== "MC") return alert("Use number or MC");
+    projections[name] = {pos: pos, winnings: getPayout(pos), toPar: pos === "MC" ? "MC" : "-"};
     renderAll();
 }
 
-function updateProjection(golfer, newPosStr) {
-    let pos = newPosStr.toUpperCase() === "MC" ? "MC" : parseInt(newPosStr);
+function updateProjection(g, newPos) {
+    const pos = String(newPos).toUpperCase() === "MC" ? "MC" : parseInt(newPos);
     if (isNaN(pos) && pos !== "MC") return;
-    projections[golfer] = {pos: pos, winnings: getPayout(pos), toPar: pos === "MC" ? "MC" : "-" };
+    projections[g] = {pos: pos, winnings: getPayout(pos), toPar: pos === "MC" ? "MC" : "-"};
     renderAll();
 }
 
-function deleteProjection(golfer) {
-    if (confirm(`Remove ${golfer}?`)) {
-        delete projections[golfer];
-        renderAll();
-    }
+function deleteProjection(g) {
+    if (confirm(`Remove ${g}?`)) { delete projections[g]; renderAll(); }
 }
 
-// Live fetch (enhanced to also capture toPar when available)
+// Improved fetch with detailed status
 async function fetchLivePositions() {
     const statusEl = document.getElementById("live-status");
-    statusEl.textContent = "⏳ Fetching live data...";
+    statusEl.innerHTML = "⏳ Fetching from PGA Tour feed...";
+
     try {
         const proxy = "https://corsproxy.io/?";
         const msgRes = await fetch(proxy + encodeURIComponent("https://statdata.pgatour.com/r/current/message.json"));
+        if (!msgRes.ok) throw new Error(`Message error: ${msgRes.status}`);
         const msg = await msgRes.json();
         const tid = msg.tid || msg.currentTid;
-        const tourneyName = msg.tn || msg.tournamentName || "Unknown";
+        const tourneyName = (msg.tn || msg.tournamentName || "Unknown").toLowerCase();
 
-        if (!tid || !tourneyName.toLowerCase().includes("masters")) {
-            statusEl.textContent = `⚠️ ${tourneyName} — Masters rounds start Thursday`;
-            return alert("Masters live scoring begins Thursday April 9.");
+        if (!tid || !tourneyName.includes("masters")) {
+            statusEl.innerHTML = `⚠️ Current event: ${msg.tn || "Unknown"} — Masters data not yet active in feed`;
+            return;
         }
 
         const lbRes = await fetch(proxy + encodeURIComponent(`https://statdata.pgatour.com/r/${tid}/leaderboard-v2mini.json`));
+        if (!lbRes.ok) throw new Error(`Leaderboard error: ${lbRes.status}`);
         const lb = await lbRes.json();
         const players = lb.players || (lb.leaderboard && lb.leaderboard.players) || [];
         let updated = 0;
 
         players.forEach(p => {
-            const rawName = (p.name || p.playerName || `${p.firstName||""} ${p.lastName||""}`).trim().toLowerCase();
+            let rawName = (p.name || p.playerName || `${p.firstName||""} ${p.lastName||""}`).trim().toLowerCase();
             let posStr = (p.pos || p.position || "").toString().trim();
             if (["MC","CUT","WD"].includes(posStr.toUpperCase())) posStr = "MC";
             const toPar = p.toPar || p.score || "-";
 
-            Object.keys(projections).forEach(gKey => {
-                const gLower = gKey.toLowerCase();
+            // Enhanced fuzzy matching for your teams
+            Object.keys(projections).forEach(key => {
+                let gLower = key.toLowerCase().replace(/å/g, 'a').replace(/macintyre/g, 'macintyre');
                 if (rawName.includes(gLower.split(" ")[0]) && rawName.includes(gLower.split(" ").pop())) {
-                    projections[gKey] = {
-                        pos: posStr,
-                        winnings: getPayout(posStr),
-                        toPar: toPar
-                    };
+                    projections[key] = {pos: posStr, winnings: getPayout(posStr), toPar: toPar};
                     updated++;
                 }
             });
         });
 
         renderAll();
-        statusEl.innerHTML = `✅ LIVE • ${tourneyName} • ${updated} updates • ${new Date().toLocaleTimeString()}`;
-    } catch (e) {
-        statusEl.textContent = "❌ Fetch issue — try again or enter manually";
+        statusEl.innerHTML = `✅ LIVE • ${updated} golfers updated • ${new Date().toLocaleTimeString()}`;
+        if (updated === 0) statusEl.innerHTML += " (no matching golfers scored yet — keep checking)";
+    } catch (err) {
+        console.error(err);
+        statusEl.innerHTML = `❌ ${err.message} — scoring is early; try again in a few minutes`;
     }
-}
-
-function renderAll() {
-    renderStandings();
-    renderProjectionsTable();
-    renderTeams();
 }
 
 function switchTab(n) {
     document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===n));
-    document.querySelectorAll('.tab-content').forEach((c,i) => c.style.display = (i===n-1) ? 'block' : 'none'); // adjust indexing
-    // Tab 0 = standings (always visible), Tab 1 = projections, Tab 2 = teams
+    document.querySelectorAll('.tab-content').forEach((c,i) => c.style.display = (i===n) ? 'block' : 'none');
 }
 
-// Init
 function init() {
     const saved = localStorage.getItem("mastersTeams2026");
     if (saved) teams = JSON.parse(saved);
     renderAll();
-    // Default to standings view
-    document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+    switchTab(0);
+    console.log("%c✅ 2026 Masters Pool loaded — fetch as scores post", "color:#00693e;font-weight:bold");
 }
 
 window.onload = init;
